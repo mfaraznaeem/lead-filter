@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Filter — Internal Tool</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0f0f0f;
+  --bg2:#161616;
+  --bg3:#1e1e1e;
+  --bg4:#252525;
+  --border:#2a2a2a;
+  --border2:#333;
+  --text:#f0ede8;
+  --text2:#888;
+  --text3:#555;
+  --accent:#e8ff47;
+  --accent-dim:#c8df27;
+  --accent-bg:rgba(232,255,71,0.06);
+  --accent-border:rgba(232,255,71,0.2);
+  --t1:#ff6b35;--t1-bg:rgba(255,107,53,0.08);--t1-border:rgba(255,107,53,0.2);
+  --t2:#4fa3e0;--t2-bg:rgba(79,163,224,0.08);--t2-border:rgba(79,163,224,0.2);
+  --t3:#a78bfa;--t3-bg:rgba(167,139,250,0.08);--t3-border:rgba(167,139,250,0.2);
+  --t4:#34d399;--t4-bg:rgba(52,211,153,0.08);--t4-border:rgba(52,211,153,0.2);
+  --red:#f87171;--red-bg:rgba(248,113,113,0.08);
+  --radius:10px;--radius-sm:6px;
+}
+
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;line-height:1.6;}
+
+/* HEADER */
+header{
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  padding:0 2rem;
+  height:54px;
+  display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:200;
+}
+.logo-mark{
+  width:30px;height:30px;
+  background:var(--accent);
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.logo-mark svg{width:16px;height:16px;fill:var(--bg);}
+header h1{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.01em;}
+.version{font-size:10px;font-weight:500;background:var(--bg3);color:var(--text2);padding:2px 8px;border-radius:20px;border:1px solid var(--border2);letter-spacing:0.05em;text-transform:uppercase;}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+.status-dot.ready{background:var(--accent);}
+.status-label{font-size:11px;color:var(--text2);}
+
+/* LAYOUT */
+main{max-width:1200px;margin:0 auto;padding:1.5rem;display:grid;grid-template-columns:360px 1fr;gap:1.25rem;align-items:start;}
+
+/* PANELS */
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.panel-hd{padding:.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.panel-hd h2{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.03em;color:var(--text);text-transform:uppercase;}
+.step-badge{width:20px;height:20px;border-radius:50%;background:var(--bg4);border:1px solid var(--border2);font-size:10px;font-weight:600;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Syne',sans-serif;}
+.step-badge.active{background:var(--accent);border-color:var(--accent);color:var(--bg);}
+.step-badge.done{background:var(--t4);border-color:var(--t4);color:var(--bg);}
+.panel-bd{padding:1.25rem;}
+
+/* UPLOAD */
+.upload-zone{
+  border:1px dashed var(--border2);border-radius:var(--radius-sm);
+  padding:1.75rem 1.25rem;text-align:center;cursor:pointer;
+  transition:all .2s;background:var(--bg3);
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:var(--accent-bg);}
+.upload-zone.done{border-color:var(--t4);border-style:solid;background:rgba(52,211,153,0.05);}
+.upload-icon{font-size:26px;margin-bottom:8px;opacity:.6;}
+.upload-zone p{font-size:12px;color:var(--text2);}
+.upload-zone strong{color:var(--text);}
+.file-chip{display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--bg4);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--t4);font-family:'Inter',monospace;}
+
+/* COL MAP */
+.map-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.map-lbl{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);width:72px;flex-shrink:0;}
+select,input[type=text]{
+  flex:1;height:32px;border:1px solid var(--border2);border-radius:var(--radius-sm);
+  background:var(--bg3);color:var(--text);font-family:'Inter',sans-serif;font-size:12px;
+  padding:0 10px;outline:none;transition:border-color .15s;appearance:none;
+}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;}
+select:focus,input[type=text]:focus{border-color:var(--accent);}
+select option{background:var(--bg3);}
+
+/* TIERS */
+.tiers{display:flex;flex-direction:column;gap:8px;}
+.tier-block{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
+.tier-hd{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;
+  transition:background .15s;user-select:none;
+}
+.tier-hd:hover{background:var(--bg3);}
+.tier-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.tier-name{font-family:'Syne',sans-serif;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
+.tier-count{font-size:10px;color:var(--text3);margin-left:auto;}
+.tier-chevron{font-size:10px;color:var(--text3);transition:transform .2s;}
+.tier-chevron.open{transform:rotate(180deg);}
+.tier-body{border-top:1px solid var(--border);padding:8px;display:none;}
+.tier-body.open{display:block;}
+.tier-list{display:flex;flex-direction:column;gap:4px;margin-bottom:7px;}
+.title-item{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+  padding:5px 8px;cursor:grab;transition:border-color .15s;
+}
+.title-item:hover{border-color:var(--border2);}
+.title-item.dragging{opacity:.35;}
+.title-item.drag-over{border-color:var(--accent);}
+.drag-grip{color:var(--text3);font-size:11px;cursor:grab;flex-shrink:0;}
+.title-rank{font-size:9px;font-weight:600;color:var(--text3);width:18px;flex-shrink:0;font-family:'Syne',sans-serif;}
+.title-inp{
+  flex:1;border:none;background:transparent;color:var(--text);
+  font-size:12px;outline:none;font-family:'Inter',sans-serif;
+}
+.rm-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1;flex-shrink:0;}
+.rm-btn:hover{color:var(--red);}
+.add-title-row{display:flex;gap:5px;}
+.add-title-row input{height:28px;font-size:12px;}
+.btn-add-title{
+  height:28px;padding:0 10px;border-radius:var(--radius-sm);
+  background:transparent;border:1px solid var(--border2);color:var(--text2);
+  font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;
+  transition:all .15s;flex-shrink:0;
+}
+.btn-add-title:hover{border-color:var(--accent);color:var(--accent);}
+
+/* RUN BTN */
+.btn-run{
+  width:100%;height:44px;background:var(--accent);color:var(--bg);
+  border:none;border-radius:var(--radius-sm);
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
+  letter-spacing:.02em;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:opacity .15s;
+}
+.btn-run:hover{opacity:.88;}
+.btn-run:disabled{opacity:.25;cursor:not-allowed;}
+.btn-reset{
+  width:100%;height:32px;background:transparent;color:var(--text3);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;margin-top:6px;
+  transition:all .15s;
+}
+.btn-reset:hover{border-color:var(--border2);color:var(--text2);}
+
+/* ERROR */
+.err{font-size:12px;color:var(--red);background:var(--red-bg);border:1px solid rgba(248,113,113,.15);border-radius:var(--radius-sm);padding:8px 12px;margin-top:8px;display:none;}
+
+/* RESULTS SIDE */
+.results-col{display:flex;flex-direction:column;gap:1rem;}
+.empty-state{padding:4rem 2rem;text-align:center;}
+.empty-ico{font-size:36px;opacity:.2;margin-bottom:12px;}
+.empty-state p{font-size:13px;color:var(--text3);}
+.empty-state strong{color:var(--text2);}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.875rem 1rem;}
+.stat-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);font-weight:500;margin-bottom:4px;}
+.stat-val{font-size:24px;font-weight:300;color:var(--text);letter-spacing:-.02em;font-family:'Syne',sans-serif;}
+.stat-val.hi{color:var(--accent);}
+.stat-val.mid{color:var(--t2);}
+
+/* TABLE PANEL */
+.tbl-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.tbl-hd{padding:.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.tbl-hd h3{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.dl-row{display:flex;gap:6px;}
+.btn-dl{
+  height:30px;padding:0 12px;border-radius:var(--radius-sm);
+  font-family:'Inter',sans-serif;font-size:11px;font-weight:500;cursor:pointer;
+  display:flex;align-items:center;gap:5px;transition:all .15s;
+  border:1px solid var(--border2);background:transparent;color:var(--text2);
+}
+.btn-dl:hover{border-color:var(--text2);color:var(--text);}
+.btn-dl.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600;}
+.btn-dl.primary:hover{opacity:.85;}
+
+/* TABS + SEARCH */
+.tbl-controls{padding:8px 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.tabs{display:flex;gap:2px;background:var(--bg3);padding:2px;border-radius:6px;}
+.tab{
+  height:26px;padding:0 12px;border:none;border-radius:5px;
+  background:transparent;color:var(--text3);font-family:'Inter',sans-serif;
+  font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.tab.active{background:var(--bg4);color:var(--text);}
+.search-inp{
+  flex:1;height:28px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:0 10px;font-size:12px;background:var(--bg3);color:var(--text);
+  font-family:'Inter',sans-serif;outline:none;min-width:0;
+}
+.search-inp:focus{border-color:var(--accent);}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;max-height:480px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead{position:sticky;top:0;background:var(--bg2);z-index:10;}
+th{
+  padding:9px 12px;text-align:left;font-size:10px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--text3);
+  border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;
+}
+th:hover{color:var(--text2);}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--bg3);}
+
+/* TIER PILL */
+.tier-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
+.tp1{background:var(--t1-bg);color:var(--t1);border:1px solid var(--t1-border);}
+.tp2{background:var(--t2-bg);color:var(--t2);border:1px solid var(--t2-border);}
+.tp3{background:var(--t3-bg);color:var(--t3);border:1px solid var(--t3-border);}
+.tp4{background:var(--t4-bg);color:var(--t4);border:1px solid var(--t4-border);}
+.tp-fallback{background:var(--bg4);color:var(--text3);border:1px solid var(--border);}
+
+.sep{height:1px;background:var(--border);margin:.875rem 0;}
+
+@media(max-width:900px){main{grid-template-columns:1fr;}.stats-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">
+    <svg viewBox="0 0 16 16"><path d="M2 3h12v2H2zm2 4h8v2H4zm3 4h2v2H7z"/></svg>
+  </div>
+  <h1>Lead Filter</h1>
+  <span class="version">v2</span>
+  <div class="header-right">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-label" id="statusLabel">Upload a file to begin</span>
+  </div>
+</header>
+
+<main>
+<!-- LEFT PANEL -->
+<div style="display:flex;flex-direction:column;gap:1rem;">
+
+  <!-- Step 1: Upload -->
+  <div class="panel">
+    <div class="panel-hd">
+      <div class="step-badge active" id="s1badge">1</div>
+      <h2>Upload Excel</h2>
+    </div>
+    <div class="panel-bd">
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📊</div>
+        <p><strong>Click to upload</strong> or drag & drop</p>
+        <p style="margin-top:3px;font-size:11px;">.xlsx or .xls only</p>
+        <div class="file-chip" id="fileChip" style="display:none">
+          <span>✓</span><span id="fileName"></span>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+    </div>
+  </div>
+
+  <!-- Step 2: Column Mapping -->
+  <div class="panel" id="step2panel" style="opacity:.35;pointer-events:none;">
+    <div class="panel-hd">
+      <div class="step-badge" id="s2badge">2</div>
+      <h2>Map columns</h2>
+    </div>
+    <div class="panel-bd" id="colMapBody">
+      <p style="font-size:12px;color:var(--text3);">Upload a file first.</p>
+    </div>
+  </div>
+
+  <!-- Step 3: Tiers -->
+  <div class="panel">
+    <div class="panel-hd">
+      <div class="step-badge active">3</div>
+      <h2>Title tiers & priorities</h2>
+    </div>
+    <div class="panel-bd">
+      <p style="font-size:11px;color:var(--text3);margin-bottom:10px;">Tier 1 is highest priority. Within each tier, drag to reorder. One contact per company — guaranteed.</p>
+      <div class="tiers" id="tiersContainer"></div>
+      <div class="sep"></div>
+      <button class="btn-reset" onclick="resetTiers()">↺ Reset to defaults</button>
+    </div>
+  </div>
+
+  <!-- Run -->
+  <div class="panel">
+    <div class="panel-bd">
+      <button class="btn-run" id="runBtn" onclick="processLeads()" disabled>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l10 6-10 6V2z"/></svg>
+        Run Filter
+      </button>
+      <div class="err" id="errMsg"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- RIGHT: RESULTS -->
+<div class="results-col">
+
+  <div class="panel" id="emptyPanel">
+    <div class="panel-bd">
+      <div class="empty-state">
+        <div class="empty-ico">🎯</div>
+        <p><strong>No results yet</strong></p>
+        <p style="margin-top:6px;">Upload your leads, configure tiers, hit Run.</p>
+        <p style="margin-top:4px;">Every company gets exactly one contact.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultsSection" style="display:none;flex-direction:column;gap:1rem;">
+
+    <div class="stats-grid">
+      <div class="stat"><div class="stat-lbl">Total rows</div><div class="stat-val" id="stTotal">—</div></div>
+      <div class="stat"><div class="stat-lbl">Companies</div><div class="stat-val hi" id="stCompanies">—</div></div>
+      <div class="stat"><div class="stat-lbl">Tier matched</div><div class="stat-val mid" id="stMatched">—</div></div>
+      <div class="stat"><div class="stat-lbl">Fallback used</div><div class="stat-val" id="stFallback">—</div></div>
+    </div>
+
+    <div class="tbl-panel">
+      <div class="tbl-hd">
+        <h3>Filtered leads</h3>
+        <div class="dl-row">
+          <button class="btn-dl" onclick="downloadCSV()">⬇ CSV</button>
+          <button class="btn-dl primary" onclick="downloadXLSX()">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="tbl-controls">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('all',this)">All</button>
+          <button class="tab" onclick="switchTab('tier',this)">Tier matched</button>
+          <button class="tab" onclick="switchTab('fallback',this)">Fallback</button>
+        </div>
+        <input class="search-inp" id="searchInp" placeholder="Search company, name, title..." oninput="renderTable()">
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead id="tHead"></thead>
+          <tbody id="tBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+</main>
+
+<script>
+// ─── DEFAULT TIERS (Digital Marketing Agency) ───────────────────────────────
+const DEFAULT_TIERS = [
+  {
+    id:'t1', name:'Decision Makers', color:'var(--t1)',
+    titles:[
+      'CEO','Chief Executive Officer','Founder','Co-Founder','Owner','Co-Owner',
+      'Managing Director','MD','President','Chairman','Director','Group Director'
+    ]
+  },
+  {
+    id:'t2', name:'Marketing Leadership', color:'var(--t2)',
+    titles:[
+      'CMO','Chief Marketing Officer','Marketing Director','Director of Marketing',
+      'Head of Marketing','VP Marketing','Vice President Marketing',
+      'Brand Director','Head of Brand','Director of Communications',
+      'Chief Brand Officer','Marketing Manager'
+    ]
+  },
+  {
+    id:'t3', name:'Digital & Growth', color:'var(--t3)',
+    titles:[
+      'Digital Marketing Manager','Digital Marketing Director','Head of Digital',
+      'Head of Digital Marketing','Growth Manager','Growth Director',
+      'Head of Growth','Performance Marketing Manager','SEO Manager',
+      'Head of SEO','Social Media Manager','Head of Social Media',
+      'Content Manager','Head of Content','Ecommerce Manager','Head of Ecommerce',
+      'Paid Media Manager','PPC Manager','CRM Manager'
+    ]
+  },
+  {
+    id:'t4', name:'Business Development & Sales', color:'var(--t4)',
+    titles:[
+      'COO','Chief Operating Officer','Sales Director','Head of Sales',
+      'Business Development Director','Business Development Manager','BDM',
+      'VP Sales','Vice President Sales','Commercial Director',
+      'Head of Partnerships','Country Manager','General Manager'
+    ]
+  }
+];
+
+let tiers = JSON.parse(JSON.stringify(DEFAULT_TIERS));
+let parsedHeaders = [];
+let parsedRows = [];
+let resultRows = [];
+let currentTab = 'all';
+let sortCol = null, sortDir = 1;
+let dragTier = null, dragIdx = null;
+
+// ─── TIER RENDERING ──────────────────────────────────────────────────────────
+function renderTiers() {
+  const container = document.getElementById('tiersContainer');
+  container.innerHTML = '';
+  tiers.forEach((tier, ti) => {
+    const open = tier._open ?? (ti === 0);
+    const div = document.createElement('div');
+    div.className = 'tier-block';
+    div.innerHTML = `
+      <div class="tier-hd" onclick="toggleTier(${ti})">
+        <span class="tier-dot" style="background:${tier.color}"></span>
+        <span class="tier-name" style="color:${tier.color}">Tier ${ti+1} — ${tier.name}</span>
+        <span class="tier-count">${tier.titles.length}</span>
+        <span class="tier-chevron${open?' open':''}">▾</span>
+      </div>
+      <div class="tier-body${open?' open':''}">
+        <div class="tier-list" id="list-${ti}"></div>
+        <div class="add-title-row">
+          <input type="text" id="addInp-${ti}" placeholder="Add title to this tier…" onkeydown="if(event.key==='Enter')addTitleToTier(${ti})">
+          <button class="btn-add-title" onclick="addTitleToTier(${ti})">+ Add</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+    tier._open = open;
+    renderTierList(ti);
+  });
+}
+
+function renderTierList(ti) {
+  const list = document.getElementById(`list-${ti}`);
+  if (!list) return;
+  list.innerHTML = '';
+  tiers[ti].titles.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'title-item';
+    el.draggable = true;
+    el.innerHTML = `
+      <span class="drag-grip">⠿</span>
+      <span class="title-rank">${i+1}</span>
+      <input class="title-inp" value="${escHtml(t)}" onchange="tiers[${ti}].titles[${i}]=this.value">
+      <button class="rm-btn" onclick="removeTierTitle(${ti},${i})">×</button>
+    `;
+    el.addEventListener('dragstart', e => { dragTier=ti; dragIdx=i; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragTier=null; dragIdx=null; });
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('drag-over');
+      if (dragTier===null) return;
+      const srcT=dragTier, srcI=dragIdx;
+      const dstT=ti, dstI=i;
+      const [item] = tiers[srcT].titles.splice(srcI,1);
+      tiers[dstT].titles.splice(dstI,0,item);
+      dragTier=null; dragIdx=null;
+      renderTiers();
+    });
+    list.appendChild(el);
+  });
+}
+
+function toggleTier(ti) {
+  tiers[ti]._open = !tiers[ti]._open;
+  renderTiers();
+}
+
+function addTitleToTier(ti) {
+  const inp = document.getElementById(`addInp-${ti}`);
+  const v = inp.value.trim();
+  if (!v) return;
+  tiers[ti].titles.push(v);
+  inp.value='';
+  renderTiers();
+  tiers[ti]._open = true;
+}
+
+function removeTierTitle(ti, i) {
+  tiers[ti].titles.splice(i,1);
+  renderTierList(ti);
+  document.querySelector(`#list-${ti}`)?.closest('.tier-block')?.querySelector('.tier-count').textContent = tiers[ti].titles.length;
+}
+
+function resetTiers() {
+  tiers = JSON.parse(JSON.stringify(DEFAULT_TIERS));
+  renderTiers();
+}
+
+// ─── FILE UPLOAD ─────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', e=>{e.preventDefault();uploadZone.classList.add('drag');});
+uploadZone.addEventListener('dragleave', ()=>uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e=>{e.preventDefault();uploadZone.classList.remove('drag');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+document.getElementById('fileInput').addEventListener('change', e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result,{type:'binary'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws,{defval:''});
+      if (!data.length){showErr('File is empty or unreadable.');return;}
+      parsedHeaders = Object.keys(data[0]);
+      parsedRows = data;
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileChip').style.display='inline-flex';
+      uploadZone.classList.add('done');
+      document.getElementById('s1badge').className='step-badge done';
+      buildColMap();
+      document.getElementById('step2panel').style.opacity='1';
+      document.getElementById('step2panel').style.pointerEvents='auto';
+      document.getElementById('s2badge').className='step-badge active';
+      document.getElementById('runBtn').disabled=false;
+      setStatus('ready','File loaded — ready to run');
+      hideErr();
+    } catch(er){showErr('Could not read file. Make sure it is a valid .xlsx/.xls file.');}
+  };
+  reader.readAsBinaryString(file);
+}
+
+function buildColMap() {
+  const lower = parsedHeaders.map(h=>h.toLowerCase());
+  const guess = kws => parsedHeaders[lower.findIndex(h=>kws.some(k=>h.includes(k)))]||parsedHeaders[0];
+  const fields=[
+    {id:'cCompany',lbl:'Company',kws:['company','org','account','firm','business','brand']},
+    {id:'cTitle',  lbl:'Title',  kws:['title','designation','position','role','job']},
+    {id:'cName',   lbl:'Name',   kws:['name','first','contact','person','full']},
+  ];
+  document.getElementById('colMapBody').innerHTML = fields.map(f=>`
+    <div class="map-row">
+      <span class="map-lbl">${f.lbl}</span>
+      <select id="${f.id}">${parsedHeaders.map(h=>`<option${h===guess(f.kws)?' selected':''}>${h}</option>`).join('')}</select>
+    </div>
+  `).join('') + `<p style="font-size:11px;color:var(--text3);margin-top:8px;">All other columns are included in export automatically.</p>`;
+}
+
+// ─── FUZZY MATCHING ───────────────────────────────────────────────────────────
+function norm(s){return(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim();}
+
+const ALIASES={
+  'ceo':['chief executive','ceo','c e o'],
+  'coo':['chief operating','coo'],
+  'cto':['chief technology','chief technical','cto'],
+  'cmo':['chief marketing','cmo'],
+  'cfo':['chief financial','cfo'],
+  'founder':['founder','co-founder','cofounder','co founder'],
+  'owner':['owner','co-owner','coowner'],
+  'md':['managing director','managing dir'],
+  'president':['president'],
+  'vp marketing':['vp marketing','vice president marketing','vp of marketing'],
+  'vp sales':['vp sales','vice president sales','vp of sales'],
+  'marketing director':['marketing director','director of marketing','director marketing'],
+  'head of marketing':['head of marketing','head marketing'],
+  'digital marketing manager':['digital marketing manager','digital marketing director','head of digital','head digital'],
+  'growth manager':['growth manager','growth director','head of growth','head growth'],
+  'seo manager':['seo manager','head of seo','seo director','seo lead'],
+  'social media manager':['social media manager','head of social','social manager'],
+  'sales director':['sales director','director of sales','director sales'],
+  'bdm':['business development manager','business development director','bdm','bdd'],
+  'general manager':['general manager','gm','country manager'],
+};
+
+function matchRank(contactTitle) {
+  // Returns {tierIdx, titleIdx} or null
+  const ct = norm(contactTitle);
+  for (let ti=0; ti<tiers.length; ti++) {
+    for (let si=0; si<tiers[ti].titles.length; si++) {
+      const pt = norm(tiers[ti].titles[si]);
+      if (ct===pt || ct.includes(pt) || pt.includes(ct)) return {ti,si};
+      // alias check
+      for (const [key,aliases] of Object.entries(ALIASES)) {
+        const ptIsAlias = aliases.some(a=>pt.includes(a))||pt===key;
+        const ctIsAlias = aliases.some(a=>ct.includes(a));
+        if (ptIsAlias && ctIsAlias) return {ti,si};
+      }
+    }
+  }
+  return null;
+}
+
+// ─── PROCESS ─────────────────────────────────────────────────────────────────
+function processLeads() {
+  hideErr();
+  if (!parsedRows.length){showErr('Upload a file first.');return;}
+  const cC=document.getElementById('cCompany')?.value;
+  const cT=document.getElementById('cTitle')?.value;
+  if (!cC||!cT){showErr('Map Company and Title columns first.');return;}
+
+  const byCompany={};
+  parsedRows.forEach(row=>{
+    const co=(row[cC]||'').toString().trim();
+    if(!co)return;
+    if(!byCompany[co])byCompany[co]=[];
+    byCompany[co].push(row);
+  });
+
+  resultRows=[];
+  let matchedCount=0, fallbackCount=0;
+
+  Object.entries(byCompany).forEach(([company,rows])=>{
+    // Score every person
+    const scored=rows.map(row=>{
+      const title=(row[cT]||'').toString().trim();
+      const match=matchRank(title);
+      return {row,match};
+    });
+
+    // Find best tier match (lowest tierIdx, then lowest titleIdx)
+    const matched=scored.filter(s=>s.match!==null).sort((a,b)=>{
+      if(a.match.ti!==b.match.ti)return a.match.ti-b.match.ti;
+      return a.match.si-b.match.si;
+    });
+
+    if(matched.length>0){
+      const best=matched[0];
+      resultRows.push({
+        ...best.row,
+        _tier: best.match.ti+1,
+        _tierName: tiers[best.match.ti].name,
+        _matchedTo: tiers[best.match.ti].titles[best.match.si],
+        _isFallback: false,
+      });
+      matchedCount++;
+    } else {
+      // FALLBACK: pick first person in list (guaranteed one per company)
+      const fallback=scored[0];
+      resultRows.push({
+        ...fallback.row,
+        _tier: '—',
+        _tierName: 'Fallback',
+        _matchedTo: 'No tier match',
+        _isFallback: true,
+      });
+      fallbackCount++;
+    }
+  });
+
+  const companies=Object.keys(byCompany).length;
+  document.getElementById('stTotal').textContent=parsedRows.length;
+  document.getElementById('stCompanies').textContent=companies;
+  document.getElementById('stMatched').textContent=matchedCount;
+  document.getElementById('stFallback').textContent=fallbackCount;
+
+  document.getElementById('emptyPanel').style.display='none';
+  const rs=document.getElementById('resultsSection');
+  rs.style.display='flex';rs.style.flexDirection='column';rs.style.gap='1rem';
+  setStatus('ready',`Done — ${companies} companies, ${resultRows.length} contacts`);
+  renderTable();
+}
+
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+function getRows(){
+  let rows=[...resultRows];
+  if(currentTab==='tier')rows=rows.filter(r=>!r._isFallback);
+  if(currentTab==='fallback')rows=rows.filter(r=>r._isFallback);
+  const q=(document.getElementById('searchInp')?.value||'').toLowerCase();
+  if(q)rows=rows.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
+  if(sortCol){
+    rows.sort((a,b)=>{
+      const av=String(a[sortCol]||'').toLowerCase();
+      const bv=String(b[sortCol]||'').toLowerCase();
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+  }
+  return rows;
+}
+
+const TIER_COLORS=['tp1','tp2','tp3','tp4'];
+
+function tierPill(row){
+  if(row._isFallback) return `<span class="tier-pill tp-fallback">Fallback</span>`;
+  const cls=TIER_COLORS[row._tier-1]||'tp-fallback';
+  return `<span class="tier-pill ${cls}">Tier ${row._tier}</span>`;
+}
+
+function renderTable(){
+  const rows=getRows();
+  const meta=['_tier','_tierName','_matchedTo'];
+  const metaLbl={_tier:'Tier',_tierName:'Category',_matchedTo:'Matched title'};
+
+  document.getElementById('tHead').innerHTML=`<tr>
+    ${meta.map(c=>`<th onclick="sortBy('${c}')">${metaLbl[c]}${sortCol===c?(sortDir>0?' ↑':' ↓'):''}</th>`).join('')}
+    ${parsedHeaders.map(c=>`<th onclick="sortBy('${c}')" style="max-width:160px">${c}${sortCol===c?(sortDir>0?' ↑':' ↓'):''}</th>`).join('')}
+  </tr>`;
+
+  if(!rows.length){
+    document.getElementById('tBody').innerHTML=`<tr><td colspan="${meta.length+parsedHeaders.length}" style="text-align:center;padding:2rem;color:var(--text3)">No results</td></tr>`;
+    return;
+  }
+
+  document.getElementById('tBody').innerHTML=rows.map(row=>`<tr>
+    <td>${tierPill(row)}</td>
+    <td style="color:var(--text2);font-size:11px">${escHtml(row._tierName)}</td>
+    <td style="color:var(--text3);font-size:11px">${escHtml(row._matchedTo)}</td>
+    ${parsedHeaders.map(c=>`<td title="${escHtml(String(row[c]||''))}">${escHtml(String(row[c]||''))}</td>`).join('')}
+  </tr>`).join('');
+}
+
+function sortBy(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=1;}renderTable();}
+function switchTab(tab,btn){
+  currentTab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+// ─── DOWNLOADS ────────────────────────────────────────────────────────────────
+function exportRows(){
+  return getRows().map(r=>{
+    const out={'Tier':r._isFallback?'Fallback':`Tier ${r._tier}`,'Tier Category':r._tierName,'Matched Title':r._matchedTo};
+    parsedHeaders.forEach(h=>out[h]=r[h]);
+    return out;
+  });
+}
+
+function downloadCSV(){
+  const rows=exportRows();if(!rows.length)return;
+  const hdrs=Object.keys(rows[0]);
+  const csv=[hdrs.join(','),...rows.map(r=>hdrs.map(h=>`"${String(r[h]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  dl(new Blob([csv],{type:'text/csv'}),'filtered_leads.csv');
+}
+
+function downloadXLSX(){
+  const rows=exportRows();if(!rows.length)return;
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Filtered Leads');
+  ws['!cols']=Object.keys(rows[0]).map(c=>({wch:Math.max(c.length,14)}));
+  XLSX.writeFile(wb,'filtered_leads.xlsx');
+}
+
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function showErr(m){const e=document.getElementById('errMsg');e.textContent=m;e.style.display='block';}
+function hideErr(){document.getElementById('errMsg').style.display='none';}
+function setStatus(type,msg){
+  document.getElementById('statusDot').className='status-dot'+(type==='ready'?' ready':'');
+  document.getElementById('statusLabel').textContent=msg;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+renderTiers();
+</script>
+</body>
+</html>
